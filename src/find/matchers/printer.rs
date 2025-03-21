@@ -27,37 +27,61 @@ impl std::fmt::Display for PrintDelimiter {
 pub struct Printer {
     delimiter: PrintDelimiter,
     output_file: Option<File>,
+    repeater: usize
 }
 
 impl Printer {
-    pub fn new(delimiter: PrintDelimiter, output_file: Option<File>) -> Self {
+    pub fn new(delimiter: PrintDelimiter, output_file: Option<File>, repeater: usize) -> Self {
         Self {
             delimiter,
             output_file,
+            repeater
         }
     }
 
     fn print(&self, file_info: &WalkEntry, mut out: impl Write, print_error_message: bool) {
-        match write!(
-            out,
-            "{}{}",
-            file_info.path().to_string_lossy(),
-            self.delimiter
-        ) {
-            Ok(_) => {}
-            Err(e) => {
-                if print_error_message {
-                    writeln!(
-                        &mut stderr(),
-                        "Error writing {:?} for {}",
-                        file_info.path().to_string_lossy(),
-                        e
-                    )
-                    .unwrap();
-                    uucore::error::set_exit_code(1);
+            match write!(
+                out,
+                "{}{}",
+                file_info.path().to_string_lossy(),
+                self.delimiter
+            ) {
+                Ok(_) => {}
+                Err(e) => {
+                    if print_error_message {
+                        writeln!(
+                            &mut stderr(),
+                            "Error writing {:?} for {}",
+                            file_info.path().to_string_lossy(),
+                            e
+                        )
+                        .unwrap();
+                        uucore::error::set_exit_code(1);
+                    }
                 }
             }
-        }
+        // for _ in 1..=self.repeater {
+        //     match write!(
+        //         out,
+        //         "{}{}",
+        //         file_info.path().to_string_lossy(),
+        //         self.delimiter
+        //     ) {
+        //         Ok(_) => {}
+        //         Err(e) => {
+        //             if print_error_message {
+        //                 writeln!(
+        //                     &mut stderr(),
+        //                     "Error writing {:?} for {}",
+        //                     file_info.path().to_string_lossy(),
+        //                     e
+        //                 )
+        //                 .unwrap();
+        //                 uucore::error::set_exit_code(1);
+        //             }
+        //         }
+        //     }
+        // }
         out.flush().unwrap();
     }
 }
@@ -92,7 +116,7 @@ mod tests {
     fn prints_newline() {
         let abbbc = get_dir_entry_for("./test_data/simple", "abbbc");
 
-        let matcher = Printer::new(PrintDelimiter::Newline, None);
+        let matcher = Printer::new(PrintDelimiter::Newline, None, 1);
         let deps = FakeDependencies::new();
         assert!(matcher.matches(&abbbc, &mut deps.new_matcher_io()));
         assert_eq!(
@@ -105,7 +129,7 @@ mod tests {
     fn prints_null() {
         let abbbc = get_dir_entry_for("./test_data/simple", "abbbc");
 
-        let matcher = Printer::new(PrintDelimiter::Null, None);
+        let matcher = Printer::new(PrintDelimiter::Null, None, 1);
         let deps = FakeDependencies::new();
         assert!(matcher.matches(&abbbc, &mut deps.new_matcher_io()));
         assert_eq!(
@@ -120,7 +144,7 @@ mod tests {
         let dev_full = File::open("/dev/full").unwrap();
         let abbbc = get_dir_entry_for("./test_data/simple", "abbbc");
 
-        let matcher = Printer::new(PrintDelimiter::Newline, Some(dev_full));
+        let matcher = Printer::new(PrintDelimiter::Newline, Some(dev_full), 1);
         let deps = FakeDependencies::new();
 
         assert!(matcher.matches(&abbbc, &mut deps.new_matcher_io()));

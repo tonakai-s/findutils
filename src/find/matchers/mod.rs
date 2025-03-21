@@ -35,6 +35,7 @@ use ::regex::Regex;
 use chrono::{DateTime, Datelike, NaiveDateTime, Utc};
 use fs::FileSystemMatcher;
 use ls::Ls;
+use std::collections::{HashMap, HashSet};
 use std::fs::{File, Metadata};
 use std::path::Path;
 use std::time::SystemTime;
@@ -280,7 +281,7 @@ pub fn build_top_level_matcher(
     if !top_level_matcher.has_side_effects() {
         let mut new_and_matcher = AndMatcherBuilder::new();
         new_and_matcher.new_and_condition(top_level_matcher);
-        new_and_matcher.new_and_condition(Printer::new(PrintDelimiter::Newline, None));
+        new_and_matcher.new_and_condition(Printer::new(PrintDelimiter::Newline, None,1));
         return Ok(new_and_matcher.build());
     }
     Ok(top_level_matcher)
@@ -444,10 +445,11 @@ fn build_matcher_tree(
     // multiple-character flags don't start with a double dash
     let mut i = arg_index;
     let mut invert_next_matcher = false;
+    let mut fprint_aggregator: HashMap<&str, usize> = HashMap::new();
     while i < args.len() {
         let possible_submatcher = match args[i] {
-            "-print" => Some(Printer::new(PrintDelimiter::Newline, None).into_box()),
-            "-print0" => Some(Printer::new(PrintDelimiter::Null, None).into_box()),
+            "-print" => Some(Printer::new(PrintDelimiter::Newline, None, 1).into_box()),
+            "-print0" => Some(Printer::new(PrintDelimiter::Null, None, 1).into_box()),
             "-printf" => {
                 if i >= args.len() - 1 {
                     return Err(From::from(format!("missing argument to {}", args[i])));
@@ -461,8 +463,16 @@ fn build_matcher_tree(
                 }
                 i += 1;
 
+                // if fprint_aggregator.len() == 0 {
+                //     fprint_aggregator.insert(args[i], 1);
+                // } else if fprint_aggregator.contains_key(args[i]) {
+                //     *(fprint_aggregator.get_mut(args[i]).unwrap()) += 1;
+                // } else {
+                //     fprint_aggregator.insert(args[i], 1);
+                // }
+                // None
                 let file = get_or_create_file(args[i])?;
-                Some(Printer::new(PrintDelimiter::Newline, Some(file)).into_box())
+                Some(Printer::new(PrintDelimiter::Newline, Some(file), 1).into_box())
             }
             "-fprintf" => {
                 if i >= args.len() - 2 {
@@ -484,7 +494,7 @@ fn build_matcher_tree(
                 i += 1;
 
                 let file = get_or_create_file(args[i])?;
-                Some(Printer::new(PrintDelimiter::Null, Some(file)).into_box())
+                Some(Printer::new(PrintDelimiter::Null, Some(file), 1).into_box())
             }
             "-ls" => Some(Ls::new(None).into_box()),
             "-fls" => {
@@ -941,6 +951,13 @@ fn build_matcher_tree(
             } else {
                 top_level_matcher.new_and_condition(submatcher);
             }
+        }
+    }
+    if fprint_aggregator.len() > 0 {
+        for (path, rep) in fprint_aggregator {
+            let file = get_or_create_file(path)?;
+            let printer = Printer::new(PrintDelimiter::Newline, Some(file), rep);
+            top_level_matcher.new_and_condition(printer);
         }
     }
     if expecting_bracket {

@@ -1005,6 +1005,43 @@ fn find_fprinter() {
 
 #[test]
 #[serial(working_dir)]
+fn find_fprinter_repeat_output() {
+    let printer = ["fprint"];
+
+    for p in printer.iter() {
+        let test_dir = "test_data/simple";
+        let out_file = format!("test_data/find_{p}");
+
+        // TODO: This remove is needed? In theory the command will overwrite it
+        let _ = fs::remove_file(&out_file);
+
+        Command::cargo_bin("find")
+            .expect("Bin not found")
+            .args([
+                test_dir,
+                format!("-{p}").as_str(),
+                &out_file,
+                format!("-{p}").as_str(),
+                &out_file,
+            ])
+            .assert()
+            .success()
+            .stdout(predicate::str::is_empty())
+            .stderr(predicate::str::is_empty());
+
+        // TODO: How to read this file but prevent failure if the directory content change? (Read dinamically)
+        let mut f = File::open(&out_file).unwrap();
+        let mut contents = String::new();
+        f.read_to_string(&mut contents).unwrap();
+        assert_eq!(contents, "test_data/simple");
+
+        // TODO: Again removing?
+        let _ = fs::remove_file(format!("test_data/find_{p}"));
+    }
+}
+
+#[test]
+#[serial(working_dir)]
 fn find_follow() {
     Command::cargo_bin("find")
         .expect("found binary")
